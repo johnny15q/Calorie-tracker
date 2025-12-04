@@ -15,6 +15,8 @@ const icons = {
     X: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-x"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>',
     ShoppingBag: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-shopping-bag"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" x2="21" y1="6" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>',
     Trash2: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-trash-2"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>',
+    ChevronDown: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-down"><path d="m6 9 6 6 6-6"/></svg>',
+    ChevronUp: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-up"><path d="m18 15-6-6-6 6"/></svg>',
 };
 
 // --- Mock Data & Initial State ---
@@ -31,28 +33,17 @@ const MOCK_USER = {
     dailyGoal: 2000, // calories
 };
 
-let INITIAL_FOOD_DATABASE = [
-    { id: 1, name: 'Oats', baseCalories: 150, unit: '1 cup' },
-    { id: 2, name: 'Chicken Breast', baseCalories: 165, unit: '100g' },
-    { id: 3, name: 'White Rice', baseCalories: 200, unit: '1 cup' },
-    { id: 4, name: 'Banana', baseCalories: 105, unit: '1 medium' },
-    { id: 5, name: 'Greek Yogurt', baseCalories: 100, unit: '1 cup' },
-    { id: 6, name: 'Whole Milk', baseCalories: 150, unit: '1 cup' },
-    { id: 7, name: 'Corn Flakes', baseCalories: 100, unit: '1 cup' },
-];
-
-let INITIAL_LOGS = [
-    // Some history
-    { id: 101, date: '2023-10-25', foodName: 'Oats', calories: 300, portion: '2 cups' },
-    { id: 102, date: '2023-10-25', foodName: 'Banana', calories: 105, portion: '1 medium' },
-];
+let INITIAL_FOOD_DATABASE = []; 
+let INITIAL_LOGS = [];
 
 let state = {
     isAuthenticated: false,
     user: MOCK_USER,
     view: 'dashboard',
-    foodDb: INITIAL_FOOD_DATABASE,
     logs: INITIAL_LOGS,
+    foodDb: INITIAL_FOOD_DATABASE, 
+    // New state to track which days in history are expanded
+    expandedHistory: {},
     // LogFood temporary state
     logFood: {
         selectedFood: null,
@@ -63,7 +54,7 @@ let state = {
         newFoodName: '',
         newFoodEnergy: '',
         energyUnit: 'cal',
-        newFoodUnitType: '1 cup',
+        newFoodUnitType: '100g', // Default unit
         manualConsumedQty: '1',
         saveToLibrary: true,
     }
@@ -85,38 +76,44 @@ const convertToCal = (val, unit) => {
     return Math.round(Number(val) * KJ_TO_CAL);
 };
 
-// --- Persistence (Mimicking Firebase/State Management) ---
+// --- Persistence ---
 
-const STORAGE_KEY = 'trackfit_state';
+const STORAGE_KEY = 'trackfit_data'; // Data persistence (LocalStorage)
+const AUTH_KEY = 'trackfit_auth';    // Session persistence (SessionStorage)
 
 const loadState = () => {
     try {
+        // 1. Load Data from LocalStorage
         const serializedState = localStorage.getItem(STORAGE_KEY);
-        if (serializedState === null) return;
+        if (serializedState) {
+            const loadedState = JSON.parse(serializedState);
+            state.user = loadedState.user || MOCK_USER;
+            state.foodDb = loadedState.foodDb || INITIAL_FOOD_DATABASE;
+            state.logs = loadedState.logs || INITIAL_LOGS;
+        }
 
-        const loadedState = JSON.parse(serializedState);
-        
-        // Merge loaded state with current defaults, but keep logFood temp state clean
-        state.isAuthenticated = loadedState.isAuthenticated || false;
-        state.user = loadedState.user || MOCK_USER;
-        state.foodDb = loadedState.foodDb || INITIAL_FOOD_DATABASE;
-        state.logs = loadedState.logs || INITIAL_LOGS;
-        state.view = loadedState.view || 'dashboard';
+        // 2. Load Auth from SessionStorage
+        const authSession = sessionStorage.getItem(AUTH_KEY);
+        if (authSession === 'true') {
+            state.isAuthenticated = true;
+            state.view = 'dashboard';
+        } else {
+            state.isAuthenticated = false;
+            state.view = 'login';
+        }
 
     } catch (err) {
-        console.error("Could not load state from localStorage:", err);
+        console.error("Could not load state:", err);
     }
 };
 
 const saveState = () => {
     try {
-        // Only save persistent data, exclude temporary view/form data
+        // Only save DATA to localStorage
         const stateToSave = {
-            isAuthenticated: state.isAuthenticated,
             user: state.user,
             foodDb: state.foodDb,
             logs: state.logs,
-            view: state.view // Save view for easy return on refresh
         };
         localStorage.setItem(STORAGE_KEY, JSON.stringify(stateToSave));
     } catch (err) {
@@ -128,22 +125,27 @@ const saveState = () => {
 
 const setView = (newView) => {
     state.view = newView;
-    // Clear temporary log food state when changing views away from log
     if (newView !== 'log') {
             state.logFood = {
             selectedFood: null, portionMult: 1, searchTerm: '', mealBasket: [], isCreating: false, 
-            newFoodName: '', newFoodEnergy: '', energyUnit: 'cal', newFoodUnitType: '1 cup', 
+            newFoodName: '', newFoodEnergy: '', energyUnit: 'cal', newFoodUnitType: '100g', 
             manualConsumedQty: '1', saveToLibrary: true,
         };
     }
-    saveState();
     renderApp();
 };
 
 const setIsAuthenticated = (authStatus) => {
     state.isAuthenticated = authStatus;
     state.view = authStatus ? 'dashboard' : 'login';
-    saveState();
+    
+    // Update SessionStorage based on status
+    if (authStatus) {
+        sessionStorage.setItem(AUTH_KEY, 'true');
+    } else {
+        sessionStorage.removeItem(AUTH_KEY);
+    }
+    
     renderApp();
 };
 
@@ -155,21 +157,32 @@ const updateLogFoodState = (updates) => {
 const updateFoodDb = (newDb) => {
     state.foodDb = newDb;
     saveState();
-    renderApp(); // Re-render Log Food to reflect changes
+    renderApp();
 };
 
 const updateUser = (updatedUser) => {
     state.user = updatedUser;
     saveState();
-    renderApp(); // Re-render Profile/Dashboard
+    renderApp();
 }
 
+const handleDeleteLog = (logId) => {
+    state.logs = state.logs.filter(l => l.id !== logId);
+    saveState();
+    renderApp();
+};
+
+const toggleHistoryExpansion = (date) => {
+    // Toggle the boolean value for the specific date
+    state.expandedHistory[date] = !state.expandedHistory[date];
+    renderApp();
+};
 
 // --- Core Application Logic ---
 
 const handleAddLog = (logData) => {
     const newLog = {
-        id: Date.now() + Math.random(),
+        id: Date.now().toString(),
         date: getTodayDate(),
         ...logData
     };
@@ -183,18 +196,17 @@ const handleAddFoodToDb = (newFood) => {
         ...newFood
     };
     state.foodDb.push(foodWithId);
-    updateFoodDb(state.foodDb); // Saves and re-renders
+    updateFoodDb(state.foodDb);
 };
 
 const handleDeleteFoodFromDb = (id) => {
     state.foodDb = state.foodDb.filter(item => item.id !== id);
-    updateFoodDb(state.foodDb); // Saves and re-renders
+    updateFoodDb(state.foodDb);
 };
 
-// --- View Rendering Functions (The core UI logic) ---
+// --- View Rendering Functions ---
 
 function renderLoginScreen() {
-    // ... (HTML structure for LoginScreen)
     appRoot.innerHTML = `
         <div class="min-h-screen flex items-center justify-center bg-gray-900 px-4">
             <div class="w-full max-w-md bg-gray-800 p-8 rounded-2xl shadow-xl border border-gray-700">
@@ -206,15 +218,16 @@ function renderLoginScreen() {
                 <h2 class="text-2xl font-bold text-center text-white mb-2">TrackFit</h2>
                 <p class="text-center text-gray-400 mb-6">Login to manage your health</p>
                 
-                <form id="loginForm" class="space-y-4">
+                <form id="loginForm" class="space-y-4" autocomplete="off">
                     <div>
                         <label class="block text-sm font-medium text-gray-400 mb-1" for="username">Username</label>
                         <input 
                             type="text" 
                             id="username"
+                            name="username"
                             class="w-full bg-gray-700 text-white rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
-                            placeholder="user"
-                            value="user"
+                            placeholder="user" 
+                            autocomplete="off"
                         />
                     </div>
                     <div>
@@ -222,9 +235,10 @@ function renderLoginScreen() {
                         <input 
                             type="password" 
                             id="password"
+                            name="password"
                             class="w-full bg-gray-700 text-white rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
                             placeholder="pass123"
-                            value="pass123"
+                            autocomplete="new-password"
                         />
                     </div>
                     
@@ -250,7 +264,7 @@ function renderLoginScreen() {
         if (username === state.user.username && password === state.user.password) {
             setIsAuthenticated(true);
         } else {
-            errorElement.textContent = 'Invalid credentials. Try user / pass123';
+            errorElement.textContent = 'Invalid credentials';
             errorElement.classList.remove('hidden');
         }
     });
@@ -265,7 +279,6 @@ function renderDashboard() {
 
     return `
         <div class="space-y-6 pb-20">
-            <!-- Header Stats -->
             <div class="bg-gradient-to-br from-blue-600 to-blue-800 rounded-2xl p-6 text-white shadow-lg">
                 <div class="flex justify-between items-start mb-4">
                     <div>
@@ -282,7 +295,6 @@ function renderDashboard() {
                     <span class="text-lg opacity-80 mb-1">/ ${state.user.dailyGoal} kcal</span>
                 </div>
 
-                <!-- Progress Bar -->
                 <div class="w-full bg-black/20 rounded-full h-3 mb-2">
                     <div 
                         class="h-3 rounded-full transition-all duration-500 ${remaining < 0 ? 'bg-red-400' : 'bg-green-400'}" 
@@ -297,7 +309,6 @@ function renderDashboard() {
                 </p>
             </div>
 
-            <!-- Weight Summary Mini-Card -->
             <div class="grid grid-cols-2 gap-4">
                 <div class="bg-gray-800 p-4 rounded-xl border border-gray-700">
                     <p class="text-gray-400 text-xs uppercase font-bold tracking-wider">Current</p>
@@ -309,7 +320,6 @@ function renderDashboard() {
                 </div>
             </div>
 
-            <!-- Today's Log List -->
             <div>
                 <h3 class="text-lg font-semibold text-white mb-3">Today's Meals</h3>
                 ${todaysLogs.length === 0 ? `
@@ -350,7 +360,8 @@ function renderLogFood() {
 
     // --- Sub-View: Manual Entry / New Item ---
     if (isCreating) {
-        const availableUnits = ["1 cup", "100g", "1 piece", "1 slice", "1 serving", "1 tbsp"];
+        // Changed Units as requested
+        const availableUnits = ["1/4 cup", "1/2 cup", "1/3 cup", "1 cup", "1 serving", "100g"];
         return `
             <div class="bg-gray-800 rounded-2xl p-6 border border-gray-700 shadow-lg">
                 <div class="flex justify-between items-center mb-4">
@@ -359,7 +370,6 @@ function renderLogFood() {
                 </div>
                 
                 <div class="space-y-4" id="manualEntryForm">
-                    <!-- Name -->
                     <div>
                         <label class="text-sm text-gray-400">Food Name</label>
                         <input 
@@ -370,7 +380,6 @@ function renderLogFood() {
                         />
                     </div>
 
-                    <!-- Energy Definition -->
                     <div class="bg-gray-700/50 p-3 rounded-lg border border-gray-700 space-y-3">
                         <p class="text-xs text-blue-300 font-semibold uppercase">Nutrition Info</p>
                         <div class="grid grid-cols-2 gap-4">
@@ -407,7 +416,6 @@ function renderLogFood() {
                         </div>
                     </div>
 
-                    <!-- Consumption -->
                     <div class="bg-gray-700/50 p-3 rounded-lg border border-gray-700 space-y-3">
                         <p class="text-xs text-green-300 font-semibold uppercase">How much did you eat?</p>
                         <div>
@@ -424,7 +432,6 @@ function renderLogFood() {
                         </div>
                     </div>
                     
-                    <!-- Options -->
                     <button id="btnToggleSave" class="flex items-center gap-2 py-2">
                         <div class="w-5 h-5 rounded border flex items-center justify-center ${saveToLibrary ? 'bg-blue-600 border-blue-600' : 'border-gray-500'}">
                             ${saveToLibrary ? icons.Check.replace('w-24 h-24', 'w-4 h-4') : ''}
@@ -495,7 +502,6 @@ function renderLogFood() {
                 <h2 class="text-2xl font-bold text-white">Log Meal</h2>
             </div>
 
-            <!-- Meal Basket / Additives Section -->
             ${mealBasket.length > 0 ? `
                 <div class="bg-blue-900/20 border border-blue-500/30 rounded-xl p-4 mb-4">
                     <div class="flex items-center gap-2 mb-3">
@@ -526,7 +532,6 @@ function renderLogFood() {
                 </div>
             ` : ''}
 
-            <!-- Search & Add New -->
             <div class="relative">
                 <div class="absolute left-3 top-3.5 text-gray-400 w-5 h-5">${icons.Search}</div>
                 <input 
@@ -544,7 +549,6 @@ function renderLogFood() {
                 <div class="w-4 h-4">${icons.Plus}</div> Manual Entry / New Item
             </button>
 
-            <!-- Food Library List -->
             <div class="space-y-2">
                 <p class="text-sm font-bold text-gray-500 uppercase tracking-wider mt-4">Your Library</p>
                 ${filteredFoods.map(food => `
@@ -588,22 +592,6 @@ function renderLogFood() {
 function renderProfile() {
     const user = state.user;
     const [isEditing, setIsEditing] = [state.view === 'profile-edit', (val) => setView(val ? 'profile-edit' : 'profile')];
-
-    const handleChange = (e) => {
-        const { name, value } = e.target;
-        updateUser({ ...user, [name]: value });
-    };
-
-    const handleSave = () => {
-        updateUser({
-            ...user,
-            height: Number(user.height),
-            currentWeight: Number(user.currentWeight),
-            goalWeight: Number(user.goalWeight),
-            dailyGoal: Number(user.dailyGoal)
-        });
-        setIsEditing(false);
-    };
 
     return `
         <div class="space-y-6 pb-20">
@@ -691,7 +679,14 @@ function renderHistory() {
             
             <div class="space-y-4">
                 ${dates.map(date => {
-                    const dayTotal = grouped[date].reduce((sum, item) => sum + item.calories, 0);
+                    const dayLogs = grouped[date];
+                    const dayTotal = dayLogs.reduce((sum, item) => sum + item.calories, 0);
+                    
+                    // Logic to limit items to 3 unless expanded
+                    const isExpanded = state.expandedHistory[date] || false;
+                    const visibleLogs = isExpanded ? dayLogs : dayLogs.slice(0, 3);
+                    const hiddenCount = dayLogs.length - visibleLogs.length;
+
                     return `
                         <div class="bg-gray-800 rounded-xl overflow-hidden border border-gray-700">
                         <div class="bg-gray-700/50 p-4 flex justify-between items-center border-b border-gray-700">
@@ -702,12 +697,30 @@ function renderHistory() {
                             <span class="font-bold text-blue-400">${dayTotal} kcal</span>
                         </div>
                         <div class="p-2">
-                            ${grouped[date].map((item, idx) => `
-                            <div class="flex justify-between text-sm text-gray-300 py-2 px-2 border-b border-gray-700/50 last:border-0">
-                                <span>${item.foodName} <span class="text-gray-500 text-xs">(${item.portion})</span></span>
-                                <span>${item.calories}</span>
+                            ${visibleLogs.map((item) => `
+                            <div class="flex justify-between text-sm text-gray-300 py-2 px-2 border-b border-gray-700/50 last:border-0 items-center">
+                                <div>
+                                    <span>${item.foodName} <span class="text-gray-500 text-xs">(${item.portion})</span></span>
+                                </div>
+                                <div class="flex items-center gap-4">
+                                    <span>${item.calories}</span>
+                                    <button data-log-id="${item.id}" class="btn-delete-log p-2 text-gray-500 hover:text-red-400" title="Delete entry">
+                                        <div class="w-4 h-4">${icons.Trash2}</div>
+                                    </button>
+                                </div>
                             </div>
                             `).join('')}
+
+                            ${(hiddenCount > 0 || isExpanded && dayLogs.length > 3) ? `
+                                <button 
+                                    data-date="${date}"
+                                    class="btn-toggle-history w-full py-2 text-xs font-medium text-blue-400 hover:text-blue-300 hover:bg-gray-700/30 transition-colors flex items-center justify-center gap-1"
+                                >
+                                    ${isExpanded 
+                                        ? `Show Less ${icons.ChevronUp}` 
+                                        : `Show ${hiddenCount} More ${icons.ChevronDown}`}
+                                </button>
+                            ` : ''}
                         </div>
                         </div>
                     `;
@@ -727,7 +740,7 @@ function renderHistory() {
 function attachListeners() {
     // Use event delegation on the main app root
     appRoot.onclick = (e) => {
-        const target = e.target.closest('button, .food-select-area, input');
+        const target = e.target.closest('button, .food-select-area, input, [data-view]');
         if (!target) return;
 
         const { view, logFood } = state;
@@ -762,9 +775,15 @@ function attachListeners() {
             if (target.id === 'btnStartCreating') {
                 updateLogFoodState({ isCreating: true });
             } else if (target.id === 'btnFinishLogging') {
+                // Log items
                 logFood.mealBasket.forEach(handleAddLog);
+                
+                // Clear basket but STAY on page (do not setView to dashboard)
                 updateLogFoodState({ mealBasket: [] });
-                setView('dashboard'); // Redirect after logging
+                
+                // Optional: Alert or visual cue could go here
+                // alert("Meal logged successfully!");
+                
             } else if (target.classList.contains('btn-remove-basket')) {
                 const index = parseInt(target.dataset.index);
                 const newBasket = [...logFood.mealBasket];
@@ -842,6 +861,21 @@ function attachListeners() {
                 }
             }
         }
+
+        // --- History deletion handling ---
+        if (target.classList.contains('btn-delete-log')) {
+            const logId = target.dataset.logId;
+            if (confirm('Delete this history entry?')) {
+                handleDeleteLog(logId);
+            }
+        }
+
+        // --- History Expansion Toggle ---
+        if (target.classList.contains('btn-toggle-history')) {
+            const date = target.dataset.date;
+            toggleHistoryExpansion(date);
+        }
+
     };
     
     // Input change listeners (Manual Entry)
@@ -849,17 +883,16 @@ function attachListeners() {
         const target = e.target;
         const { view, logFood } = state;
 
+        // FIXED: Do not re-render for manual entry fields
         if (view === 'log' && logFood.isCreating) {
-            if (target.id === 'newFoodName') {
-                updateLogFoodState({ newFoodName: target.value });
-            } else if (target.id === 'newFoodEnergy') {
-                updateLogFoodState({ newFoodEnergy: target.value });
-            } else if (target.id === 'newFoodUnitType') {
-                updateLogFoodState({ newFoodUnitType: target.value });
-            } else if (target.id === 'manualConsumedQty') {
-                updateLogFoodState({ manualConsumedQty: target.value });
-            }
-        } else if (view === 'log' && target.id === 'searchTerm') {
+            if (target.id === 'newFoodName') state.logFood.newFoodName = target.value;
+            else if (target.id === 'newFoodEnergy') state.logFood.newFoodEnergy = target.value;
+            else if (target.id === 'newFoodUnitType') state.logFood.newFoodUnitType = target.value;
+            else if (target.id === 'manualConsumedQty') state.logFood.manualConsumedQty = target.value;
+            return; // EXIT before render
+        } 
+        
+        if (view === 'log' && target.id === 'searchTerm') {
             updateLogFoodState({ searchTerm: target.value });
         } else if (view === 'profile-edit' && target.classList.contains('input-profile-field')) {
                 const key = target.dataset.key;
@@ -890,7 +923,6 @@ function renderApp() {
     appRoot.innerHTML = `
         <div class="min-h-screen bg-gray-900 text-gray-100 flex justify-center">
             
-            <!-- Sidebar for Desktop -->
             <div class="hidden md:flex flex-col w-64 fixed left-0 top-0 bottom-0 bg-gray-800 border-r border-gray-700 p-6 z-50">
                 <div class="flex items-center gap-3 mb-10">
                     <div class="bg-blue-600 p-2 rounded-lg">${icons.Scale}</div>
@@ -917,7 +949,6 @@ function renderApp() {
                 </button>
             </div>
 
-            <!-- Main Content Area -->
             <div class="w-full md-pl-64"> 
                 <div class="max-w-2xl mx-auto min-h-screen relative shadow-2xl bg-gray-900">
                     <div class="p-4 pt-6 md:p-8 main-content-container">
@@ -926,7 +957,6 @@ function renderApp() {
                 </div>
             </div>
 
-            <!-- Mobile Bottom Navigation -->
             <div class="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-gray-800 border-t border-gray-700">
                 <div class="flex justify-around items-center h-16 max-w-md mx-auto">
                     <button data-view="dashboard" class="flex flex-col items-center justify-center w-full h-full space-y-1 ${activeView === 'dashboard' ? 'text-blue-500' : 'text-gray-400 hover:text-gray-200'}">
@@ -960,12 +990,11 @@ function renderApp() {
 window.setIsAuthenticated = setIsAuthenticated; // Expose to global scope for onclick in logout button
 window.updateUser = updateUser; // Expose to global scope for inline onchange in profile
 
-// 1. Load existing state if available
+// 1. Load existing state if available (but do NOT auto-login)
 loadState();
 
 // 2. Attach all event listeners (delegated)
 attachListeners();
 
 // 3. Initial render based on loaded authentication state
-
 renderApp();
