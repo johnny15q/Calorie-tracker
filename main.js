@@ -360,8 +360,8 @@ function renderLogFood() {
 
     // --- Sub-View: Manual Entry / New Item ---
     if (isCreating) {
-        // Changed Units as requested
-        const availableUnits = ["1/4 cup", "1/2 cup", "1/3 cup", "1 cup", "1 serving", "100g"];
+        // Changed Units as requested (1/3 cup is replaced by 2/3 cup)
+        const availableUnits = ["1/4 cup", "1/2 cup", "2/3 cup", "1 cup", "1 serving", "100g"];
         return `
             <div class="bg-gray-800 rounded-2xl p-6 border border-gray-700 shadow-lg">
                 <div class="flex justify-between items-center mb-4">
@@ -782,7 +782,7 @@ function attachListeners() {
                 updateLogFoodState({ mealBasket: [] });
                 
                 // Optional: Alert or visual cue could go here
-                // alert("Meal logged successfully!");
+                alert("Meal logged successfully!");
                 
             } else if (target.classList.contains('btn-remove-basket')) {
                 const index = parseInt(target.dataset.index);
