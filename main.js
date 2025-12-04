@@ -42,7 +42,7 @@ let state = {
     view: 'dashboard',
     logs: INITIAL_LOGS,
     foodDb: INITIAL_FOOD_DATABASE, 
-    // New state to track which days in history are expanded
+    // history expanded
     expandedHistory: {},
     // LogFood temporary state
     logFood: {
@@ -78,8 +78,8 @@ const convertToCal = (val, unit) => {
 
 // --- Persistence ---
 
-const STORAGE_KEY = 'trackfit_data'; // Data persistence (LocalStorage)
-const AUTH_KEY = 'trackfit_auth';    // Session persistence (SessionStorage)
+const STORAGE_KEY = 'trackfit_data'; 
+const AUTH_KEY = 'trackfit_auth';    
 
 const loadState = () => {
     try {
@@ -360,7 +360,6 @@ function renderLogFood() {
 
     // --- Sub-View: Manual Entry / New Item ---
     if (isCreating) {
-        // Changed Units as requested (1/3 cup is replaced by 2/3 cup)
         const availableUnits = ["1 serving"];
         return `
             <div class="bg-gray-800 rounded-2xl p-6 border border-gray-700 shadow-lg">
@@ -778,11 +777,11 @@ function attachListeners() {
                 // Log items
                 logFood.mealBasket.forEach(handleAddLog);
                 
-                // Clear basket but STAY on page (do not setView to dashboard)
+                // Clear basket but STAY on page
                 updateLogFoodState({ mealBasket: [] });
                 
-                // Optional: Alert or visual cue could go here
-                alert("Meal logged successfully!");
+                // Optional: Alert o
+                //alert("Meal logged successfully!");
                 
             } else if (target.classList.contains('btn-remove-basket')) {
                 const index = parseInt(target.dataset.index);
@@ -998,3 +997,4 @@ attachListeners();
 
 // 3. Initial render based on loaded authentication state
 renderApp();
+
