@@ -636,7 +636,7 @@ function renderProfile() {
                             ` : `
                                 <h3 class="text-xl font-bold text-white">${user.name}</h3>
                             `}
-                            <p class="text-gray-400 text-sm">TrackFit Member</p>
+                            <p class="text-gray-400 text-sm">Your account</p>
                         </div>
                     </div>
                 </div>
@@ -967,4 +967,5 @@ loadState();
 attachListeners();
 
 // 3. Initial render based on loaded authentication state
+
 renderApp();
