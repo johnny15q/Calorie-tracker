@@ -361,7 +361,7 @@ function renderLogFood() {
     // --- Sub-View: Manual Entry / New Item ---
     if (isCreating) {
         // Changed Units as requested (1/3 cup is replaced by 2/3 cup)
-        const availableUnits = ["1/4 cup", "1/2 cup", "2/3 cup", "1 cup", "1 serving", "100g"];
+        const availableUnits = ["1 serving"];
         return `
             <div class="bg-gray-800 rounded-2xl p-6 border border-gray-700 shadow-lg">
                 <div class="flex justify-between items-center mb-4">
